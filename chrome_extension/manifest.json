@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "YouTube RAG Chatbot",
+  "version": "1.0",
+  "description": "Chat with YouTube videos using RAG",
+  "permissions": ["activeTab", "scripting", "tabs", "sidePanel"],
+  "action": {
+    "default_title": "YouTube RAG Chatbot - Click to open"
+  },
+  "side_panel": {
+    "default_path": "sidebar.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}
