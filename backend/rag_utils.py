@@ -1,13 +1,14 @@
 # rag_utils.py
-from youtube_transcript_api import YouTubeTranscriptApi
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from urllib.parse import parse_qs, urlparse
+
+from youtube_transcript_api import TranscriptsDisabled, YouTubeTranscriptApi
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_core.prompts import PromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 from googletrans import Translator 
 from dotenv import load_dotenv
-from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled
 
 
 
@@ -30,18 +31,30 @@ prompt = PromptTemplate(
 )
 
 
+def extract_video_id(video_input: str) -> str:
+    parsed_url = urlparse(video_input)
+    if parsed_url.hostname in {"www.youtube.com", "youtube.com", "m.youtube.com"}:
+        return parse_qs(parsed_url.query).get("v", [video_input])[0]
+    if parsed_url.hostname == "youtu.be":
+        return parsed_url.path.lstrip("/")
+    return video_input
+
+
 def fetch_transcript(video_id: str) -> str:
+    video_id = extract_video_id(video_id)
+    api = YouTubeTranscriptApi()
+
     try:
         try:
-            api = YouTubeTranscriptApi()
-            transcript = api.fetch(video_id, language_code='en')
-            transcript_text = " ".join([snippet.text for snippet in transcript])
+            transcript = api.fetch(video_id, languages=("en",))
+            transcript_text = " ".join(snippet.text for snippet in transcript)
             return transcript_text
         except Exception:
             pass
 
-        transcript = api.fetch(video_id)
-        transcript_text = " ".join([snippet.text for snippet in transcript])
+        transcript_list = api.list(video_id)
+        transcript = next(iter(transcript_list)).fetch()
+        transcript_text = " ".join(snippet.text for snippet in transcript)
 
         translator = Translator()
         detected_lang = translator.detect(transcript_text[:500]).lang
@@ -53,8 +66,7 @@ def fetch_transcript(video_id: str) -> str:
     except TranscriptsDisabled:
         return "Transcript not available (subtitles disabled)."
     except Exception as e:
-        print("Error fetching transcript:", e)
-        return f"Error: {e}"
+        return f"Error fetching transcript: {e}"
 
 
 
