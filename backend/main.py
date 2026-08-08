@@ -1,3 +1,5 @@
+from time import perf_counter
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -29,7 +31,10 @@ def read_root():
 @app.post("/chat")
 def chat(request: RAGRequest):
     try:
+        start_time = perf_counter()
         answer = run_rag(request.video_id, request.question)
-        return {"answer": answer}
+        latency_seconds = perf_counter() - start_time
+        print(f"Chat latency: {latency_seconds:.2f}s")
+        return {"answer": answer, "latency_seconds": round(latency_seconds, 2)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

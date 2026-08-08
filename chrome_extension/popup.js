@@ -9,24 +9,26 @@ document.getElementById("askBtn").addEventListener("click", async () => {
   const status = document.getElementById("status");
   const answerBox = document.getElementById("answer");
 
-  answerBox.innerText = "";
-  status.innerText = "⏳ Processing...";
+  answerBox.inne
+  status.innerText = "Processing...";
 
   try {
     const videoId = await getVideoId();
     if (!videoId) throw new Error("Not a valid YouTube video.");
 
+    const startTime = performance.now();
     const response = await fetch("http://localhost:8000/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ video_id: videoId, question })
     });
+    const roundTripSeconds = (performance.now() - startTime) / 1000;
 
     const data = await response.json();
-    answerBox.innerText = data.answer || "⚠️ No answer returned.";
-    status.innerText = "✅ Answer loaded";
+    answerBox.innerText = data.answer || "No answer returned.";
+    status.innerText = `Answer loaded | server: ${data.latency_seconds ?? "?"}s | total: ${roundTripSeconds.toFixed(2)}s`;
   } catch (err) {
     answerBox.innerText = "";
-    status.innerText = "❌ " + (err.message || "Something went wrong.");
+    status.innerText = "Error: " + (err.message || "Something went wrong.");
   }
 });
