@@ -1,4 +1,4 @@
-# rag_utils.py
+import asyncio
 from urllib.parse import parse_qs, urlparse
 
 from youtube_transcript_api import TranscriptsDisabled, YouTubeTranscriptApi
@@ -16,6 +16,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 llm = ChatGoogleGenerativeAI(model='gemini-2.5-flash')
+TRANSLATION_CHUNK_SIZE = 3500
 
 
 prompt = PromptTemplate(
@@ -40,6 +41,39 @@ def extract_video_id(video_input: str) -> str:
     return video_input
 
 
+def chunk_text(text: str, max_chars: int = TRANSLATION_CHUNK_SIZE) -> list[str]:
+    chunks = []
+    current_words = []
+    current_length = 0
+
+    for word in text.split():
+        next_length = current_length + len(word) + 1
+        if current_words and next_length > max_chars:
+            chunks.append(" ".join(current_words))
+            current_words = [word]
+            current_length = len(word)
+        else:
+            current_words.append(word)
+            current_length = next_length
+
+    if current_words:
+        chunks.append(" ".join(current_words))
+
+    return chunks
+
+
+async def translate_text_to_english(text: str, source_language: str) -> str:
+    translator = Translator()
+    try:
+        translated_chunks = []
+        for chunk in chunk_text(text):
+            translated = await translator.translate(chunk, src=source_language, dest="en")
+            translated_chunks.append(translated.text)
+        return " ".join(translated_chunks)
+    finally:
+        await translator.client.aclose()
+
+
 def fetch_transcript(video_id: str) -> str:
     video_id = extract_video_id(video_id)
     api = YouTubeTranscriptApi()
@@ -56,10 +90,10 @@ def fetch_transcript(video_id: str) -> str:
         transcript = next(iter(transcript_list)).fetch()
         transcript_text = " ".join(snippet.text for snippet in transcript)
 
-        translator = Translator()
-        detected_lang = translator.detect(transcript_text[:500]).lang
-        if detected_lang != "en":
-            transcript_text = translator.translate(transcript_text, src=detected_lang, dest="en").text
+        if transcript.language_code != "en":
+            transcript_text = asyncio.run(
+                translate_text_to_english(transcript_text, transcript.language_code)
+            )
 
         return transcript_text
 
